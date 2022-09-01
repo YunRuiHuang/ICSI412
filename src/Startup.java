@@ -1,7 +1,7 @@
 /**
  * @author Yunrui Huang
  */
-public class startup {
+public class Startup {
     /**
      * the main method of program
      * @param args
