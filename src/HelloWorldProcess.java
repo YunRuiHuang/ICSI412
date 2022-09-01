@@ -10,6 +10,9 @@ public class HelloWorldProcess extends UserlandProcess {
      */
     public RunResult run(){
         System.out.println("Hello World");
-        return new RunResult();
+        RunResult runResult = new RunResult();
+        runResult.millisecondsUsed = 100;
+        runResult.ranToTimeout = false;
+        return runResult;
     }
 }
