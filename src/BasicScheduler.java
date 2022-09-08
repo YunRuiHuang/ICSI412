@@ -40,4 +40,9 @@ public class BasicScheduler implements OSInterface {
     public boolean DeleteProcess(int processId) {
         return this.processList.RemoveProcess(processId);
     }
+
+    @Override
+    public void Sleep(int milliseconds){
+
+    }
 }
