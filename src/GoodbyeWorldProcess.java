@@ -27,6 +27,7 @@ public class GoodbyeWorldProcess extends UserlandProcess {
 
     /**
      * rewrite the Run method from UserlandProcess and print the message
+     * call the sleep method to sleep 300ms (right now all process run 100ms)
      * @return
      * return an empty RunResult
      */
