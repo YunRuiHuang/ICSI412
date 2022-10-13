@@ -14,10 +14,14 @@ public class Startup {
 //        scheduler.CreateProcess(new HelloWorldProcess()); // add the helloworld process back to list
 //        scheduler.run();
 
-        int testremove = OS.getOs().CreateProcess(new GoodbyeWorldProcess()); //add the goodbye process to list and get the PID of process
-        OS.getOs().DeleteProcess(testremove); //remove the goodbye process
-        OS.getOs().CreateProcess(new GoodbyeWorldProcess()); //add the goodbye process to list
-        OS.getOs().CreateProcess(new HelloWorldProcess()); // add the helloworld process back to list
+        int testremove = OS.getOs().CreateProcess(new Realtime(), PriorityEnum.RealTime); //add the realtime process to list and get the PID of process
+        OS.getOs().DeleteProcess(testremove); //remove the realtime process
+
+        //real time process will test the sleep method
+        OS.getOs().CreateProcess(new Realtime(), PriorityEnum.RealTime); //add the real time process to realtime list
+        //interactive process will test the timeout and downgrade priority, if the counter add to 6 means already down to background level
+        OS.getOs().CreateProcess(new Interactive(), PriorityEnum.Interactive); // add the interactive process back to interactive list
+        OS.getOs().CreateProcess(new Background(), PriorityEnum.Background); // add the background process back to background list
         OS.getOs().run();
 
     }
