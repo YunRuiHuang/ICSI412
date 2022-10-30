@@ -1,8 +1,11 @@
+import java.nio.charset.StandardCharsets;
+
 /**
  * @author Yunrui Huang
  */
 public class Interactive extends UserlandProcess{
     private int abusingTimes = 0;
+
 
     /**
      * get the count of ran of timeout
@@ -51,10 +54,21 @@ public class Interactive extends UserlandProcess{
      * return an empty RunResult
      */
     public RunResult run(){
-        System.out.println("Interactive process running, timeout count: " + this.abusingTimes);
+        System.out.println("Interactive process running");
+        System.out.println("\t\ttimeout count : " + this.abusingTimes);
+
+        int[] id = new int[1];
+        id[0] = OS.getOs().Open("pipe joe");
+        System.out.println("\t\tOpen pipe device (joe), Id : " + id[0]);
+        //test the pipe read
+        System.out.println("\t\tread from pipe: " + new String(OS.getOs().Read(id[0],100), StandardCharsets.UTF_8));
+        //test the pipe write
+        OS.getOs().Write(id[0], "interactive input".getBytes(StandardCharsets.UTF_8));
+
         RunResult runResult = new RunResult();
         runResult.millisecondsUsed = 100;
         runResult.ranToTimeout = false;
+        runResult.fileID = id;
         if(abusingTimes < 6){
             runResult.ranToTimeout = true;
         }
