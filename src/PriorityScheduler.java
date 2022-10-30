@@ -1,3 +1,5 @@
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 /**
@@ -9,6 +11,8 @@ public class PriorityScheduler implements OSInterface {
     private PriorityEnum runningPriorityEnum;
     private boolean ifNotSleep = true;
     private VFS vfs = new VFS();
+    private int tlbVirtual = -1;
+    private int tlbPhysical = -1;
 
     /**
      * The run method looping to run all the process in the process list
@@ -16,6 +20,10 @@ public class PriorityScheduler implements OSInterface {
      */
     public void run(){
         while(true){
+
+            //clear tlb
+            this.tlbPhysical = -1;
+            this.tlbVirtual = -1;
 
             int timeToRun = 0;
 
@@ -40,8 +48,22 @@ public class PriorityScheduler implements OSInterface {
                     this.runningPriorityEnum = PriorityEnum.RealTime;
                 }
 
-                //running process
-                RunResult runResult = this.runningProcess.run();
+                RunResult runResult;
+                try{
+                    //running process
+                     runResult = this.runningProcess.run();
+                }catch(RescheduleException e){
+                    this.processList.RemoveProcess(this.runningProcess);
+                    this.tlbVirtual = -1;
+                    this.tlbPhysical = -1;
+                    this.runningPriorityEnum = null;
+                    this.runningProcess = null;
+                    this.ifNotSleep = true;
+                    System.out.println("===kill the process===");
+                    continue;
+                }
+
+                this.processList.FreeMemory(this.runningProcess);
                 timeToRun = runResult.millisecondsUsed;
 
                 //check if any device need to close
@@ -80,7 +102,21 @@ public class PriorityScheduler implements OSInterface {
                     continue;
                 }
                 this.runningPriorityEnum = PriorityEnum.Background;
-                RunResult runResult = this.runningProcess.run();
+                RunResult runResult;
+                try{
+                    //running process
+                    runResult = this.runningProcess.run();
+                }catch(RescheduleException e){
+                    this.processList.RemoveProcess(this.runningProcess);
+                    this.tlbVirtual = -1;
+                    this.tlbPhysical = -1;
+                    this.runningPriorityEnum = null;
+                    this.runningProcess = null;
+                    this.ifNotSleep = true;
+                    System.out.println("===kill the process===");
+                    continue;
+                }
+                this.processList.FreeMemory(this.runningProcess);
                 timeToRun = runResult.millisecondsUsed;
                 int[] file = runResult.fileID;
                 if(file != null){
@@ -119,7 +155,21 @@ public class PriorityScheduler implements OSInterface {
                     this.runningPriorityEnum = PriorityEnum.Interactive;
                 }
 
-                RunResult runResult = this.runningProcess.run();
+                RunResult runResult;
+                try{
+                    //running process
+                    runResult = this.runningProcess.run();
+                }catch(RescheduleException e){
+                    this.processList.RemoveProcess(this.runningProcess);
+                    this.tlbVirtual = -1;
+                    this.tlbPhysical = -1;
+                    this.runningPriorityEnum = null;
+                    this.runningProcess = null;
+                    this.ifNotSleep = true;
+                    System.out.println("===kill the process===");
+                    continue;
+                }
+                this.processList.FreeMemory(this.runningProcess);
                 timeToRun = runResult.millisecondsUsed;
                 int[] file = runResult.fileID;
                 if(file != null){
@@ -255,5 +305,61 @@ public class PriorityScheduler implements OSInterface {
     @Override
     public int Write(int id, byte[] data) {
         return this.vfs.Write(id,data);
+    }
+
+    /**
+     * call the KernelandProcess to Write the data into memory, If the address not match to the TLB, using the address to search the physical address first
+     * @param address
+     * the virtual address of memory that process hold for write
+     * @param value
+     * the value ready to write into memory, one byte each time
+     * @throws RescheduleException
+     * if the address is out of bounds will throw this exception
+     */
+    @Override
+    public void WriteMemory(int address, byte value) throws RescheduleException {
+        if(this.tlbVirtual != address){
+            this.tlbVirtual = -1;
+            this.tlbPhysical = this.processList.CheckTLB(address);
+            if(this.tlbPhysical == -1){
+                throw new RescheduleException();
+            }
+            this.tlbVirtual = address;
+        }
+        this.processList.WriteMemory(this.tlbPhysical,value);
+    }
+
+    /**
+     * call the KernelandProcess to Read the data from memory, If the address not match to the TLB, using the address to search the physical address first
+     * @param address
+     * the virtual memory address that process hold for read memory
+     * @return
+     * the data read from that memory address
+     * @throws RescheduleException
+     * if the address is out of bounds will throw this exception
+     */
+    @Override
+    public byte ReadMemory(int address) throws RescheduleException {
+        if(this.tlbVirtual != address){
+            this.tlbVirtual = -1;
+            this.tlbPhysical = this.processList.CheckTLB(address);
+            if(this.tlbPhysical == -1){
+                throw new RescheduleException();
+            }
+            this.tlbVirtual = address;
+        }
+        return this.processList.ReadMemory(this.tlbPhysical);
+    }
+
+    /**
+     * get a new space of memory from the memory
+     * @param amount
+     * the space request from process. if over 1024 byte, will only return 0
+     * @return
+     * first time call will return 0 and second time call will return a free memory space address
+     */
+    @Override
+    public int sbrk(int amount) {
+        return this.processList.sbrk(amount,this.runningProcess);
     }
 }

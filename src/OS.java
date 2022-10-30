@@ -123,4 +123,44 @@ public class OS implements OSInterface{
     public int Write(int id, byte[] data) {
         return priorityScheduler.Write(id,data);
     }
+
+    /**
+     * Call that instance’s methods from PriorityScheduler
+     * @param address
+     * the virtual address of memory that process hold for write
+     * @param value
+     * the value ready to write into memory, one byte each time
+     * @throws RescheduleException
+     * if the address is out of bounds will throw this exception
+     */
+    @Override
+    public void WriteMemory(int address, byte value) throws RescheduleException {
+        priorityScheduler.WriteMemory(address,value);
+    }
+
+    /**
+     * Call that instance’s methods from PriorityScheduler
+     * @param address
+     * the virtual memory address that process hold for read memory
+     * @return
+     * the data read from that memory address
+     * @throws RescheduleException
+     * if the address is out of bounds will throw this exception
+     */
+    @Override
+    public byte ReadMemory(int address) throws RescheduleException {
+        return priorityScheduler.ReadMemory(address);
+    }
+
+    /**
+     * get a new space of memory from the memory
+     * @param amount
+     * the space request from process. if over 1024 byte, will only return 0
+     * @return
+     * first time call will return 0 and second time call will return a free memory space address
+     */
+    @Override
+    public int sbrk(int amount) {
+        return priorityScheduler.sbrk(amount);
+    }
 }
