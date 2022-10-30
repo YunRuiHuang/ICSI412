@@ -11,6 +11,7 @@ public class KernelandProcess {
     private ArrayList<UserlandProcess> interactiveList;
     private ArrayList<UserlandProcess> backgroundList;
     private Map<UserlandProcess,PriorityEnum> sleepList;
+    private Map<Integer,UserlandProcess> deviceList;
 
     /**
      * the constructor of KernelandProcess class
@@ -21,6 +22,7 @@ public class KernelandProcess {
         this.interactiveList = new ArrayList<>();
         this.backgroundList = new ArrayList<>();
         this.sleepList = new HashMap<>();
+        this.deviceList = new HashMap<>();
     }
 
     /**
@@ -85,6 +87,11 @@ public class KernelandProcess {
             this.realTimeList.remove(userlandProcess);
             this.interactiveList.remove(userlandProcess);
             this.backgroundList.remove(userlandProcess);
+            for(Map.Entry<Integer, UserlandProcess> entry : this.deviceList.entrySet()){
+                if(entry.getValue() == userlandProcess){
+                    OS.getOs().Close(entry.getKey());
+                }
+            }
             return true;
         }
     }
@@ -103,6 +110,11 @@ public class KernelandProcess {
             this.realTimeList.remove(removeProcess);
             this.interactiveList.remove(removeProcess);
             this.backgroundList.remove(removeProcess);
+            for(Map.Entry<Integer, UserlandProcess> entry : this.deviceList.entrySet()){
+                if(entry.getValue() == removeProcess){
+                    OS.getOs().Close(entry.getKey());
+                }
+            }
             return true;
         }else {
             return false;
@@ -289,6 +301,15 @@ public class KernelandProcess {
         this.backgroundList.add(userlandProcess);
     }
 
-
+    /**
+     * Add the open device to the device check list
+     * @param id
+     * the VFS id of open device
+     * @param process
+     * the process own this device
+     */
+    public void AddDivice(int id, UserlandProcess process){
+        this.deviceList.put(id,process);
+    }
 
 }

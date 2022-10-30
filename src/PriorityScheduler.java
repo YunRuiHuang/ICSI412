@@ -8,6 +8,7 @@ public class PriorityScheduler implements OSInterface {
     private UserlandProcess runningProcess;
     private PriorityEnum runningPriorityEnum;
     private boolean ifNotSleep = true;
+    private VFS vfs = new VFS();
 
     /**
      * The run method looping to run all the process in the process list
@@ -27,7 +28,7 @@ public class PriorityScheduler implements OSInterface {
 
                 //if the list empty skip this run
                 if(this.runningProcess == null){
-                    System.out.println(" Real Time list is empty");
+//                    System.out.println(" Real Time list is empty");
                     continue;
                 }
 
@@ -42,6 +43,15 @@ public class PriorityScheduler implements OSInterface {
                 //running process
                 RunResult runResult = this.runningProcess.run();
                 timeToRun = runResult.millisecondsUsed;
+
+                //check if any device need to close
+                int[] file = runResult.fileID;
+                if(file != null){
+                    for (int i = 0; i < file.length; i++) {
+                        OS.getOs().Close(file[i]);
+                        System.out.println("\t\tdevice close, Id : " + file[i]);
+                    }
+                }
 
                 //update the timeout counter if timeout
                 if(runResult.ranToTimeout){
@@ -66,12 +76,19 @@ public class PriorityScheduler implements OSInterface {
                 //background
                 this.runningProcess = this.processList.GetBackgroundProcess();
                 if(this.runningProcess == null){
-                    System.out.println(" Background list is empty");
+//                    System.out.println(" Background list is empty");
                     continue;
                 }
                 this.runningPriorityEnum = PriorityEnum.Background;
                 RunResult runResult = this.runningProcess.run();
                 timeToRun = runResult.millisecondsUsed;
+                int[] file = runResult.fileID;
+                if(file != null){
+                    for (int i = 0; i < file.length; i++) {
+                        OS.getOs().Close(file[i]);
+                        System.out.println("\t\tdevice close, Id : " + file[i]);
+                    }
+                }
                 if(runResult.ranToTimeout){
                     this.runningProcess.SetAbusingCount(this.runningProcess.GetAbusingCount() + 1);
                 }
@@ -91,7 +108,7 @@ public class PriorityScheduler implements OSInterface {
                 //interactive
                 this.runningProcess = this.processList.GetInteractiveProcess();
                 if(this.runningProcess == null){
-                    System.out.println(" interactive list is empty");
+//                    System.out.println(" interactive list is empty");
                     continue;
                 }
 
@@ -104,6 +121,13 @@ public class PriorityScheduler implements OSInterface {
 
                 RunResult runResult = this.runningProcess.run();
                 timeToRun = runResult.millisecondsUsed;
+                int[] file = runResult.fileID;
+                if(file != null){
+                    for (int i = 0; i < file.length; i++) {
+                        OS.getOs().Close(file[i]);
+                        System.out.println("\t\tdevice close, Id : " + file[i]);
+                    }
+                }
                 if(runResult.ranToTimeout){
                     this.runningProcess.SetAbusingCount(this.runningProcess.GetAbusingCount() + 1);
                 }
@@ -166,5 +190,70 @@ public class PriorityScheduler implements OSInterface {
         this.runningProcess.SetSleepTime(milliseconds);
         this.processList.AddSleepProcess(this.runningProcess,this.runningPriorityEnum);
         this.ifNotSleep = false;
+    }
+
+    /**
+     * call the VFS to open a new device
+     * @param s
+     * the input string for open a new device, first word is device type, such as "random" "file" "pipe"
+     * @return
+     * the VFS id of this device
+     */
+    @Override
+    public int Open(String s) {
+        int id = this.vfs.Open(s);
+        this.processList.AddDivice(id,this.runningProcess);
+        return id;
+    }
+
+    /**
+     * Call the VFS to close a device
+     * @param id
+     * the id of device need to close
+     */
+    @Override
+    public void Close(int id) {
+        this.vfs.Close(id);
+    }
+
+    /**
+     * Call the VFS to read a device
+     * @param id
+     * the id of device ready to read
+     * @param size
+     * the length of byte ready to read from the device
+     * @return
+     * the data from the device
+     */
+    @Override
+    public byte[] Read(int id, int size) {
+
+        return this.vfs.Read(id,size);
+    }
+
+    /**
+     * Call the VFS to seek a device
+     * @param id
+     * the id of device ready to seek
+     * @param to
+     * the length of byte used to seek
+     */
+    @Override
+    public void Seek(int id, int to) {
+        this.vfs.Seek(id,to);
+    }
+
+    /**
+     * Call the VFS to write in a device
+     * @param id
+     * the id of device ready to write in
+     * @param data
+     * the data for write in to device
+     * @return
+     * write success or not, 0 is success and -1 is fail
+     */
+    @Override
+    public int Write(int id, byte[] data) {
+        return this.vfs.Write(id,data);
     }
 }
