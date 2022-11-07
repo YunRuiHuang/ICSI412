@@ -23,6 +23,7 @@ public class Startup {
         //interactive process will test the timeout and downgrade priority, if the counter add to 6 means already down to background level
         OS.getOs().CreateProcess(new Interactive(), PriorityEnum.Interactive); // add the interactive process back to interactive list
         OS.getOs().CreateProcess(new Background(), PriorityEnum.Background); // add the background process back to background list
+        OS.getOs().CreateProcess(new TestDevices(), PriorityEnum.RealTime); // add the TestDevices process back to background list
         OS.getOs().run();
 
     }

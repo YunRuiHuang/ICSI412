@@ -12,6 +12,9 @@ public class KernelandProcess {
     private ArrayList<UserlandProcess> backgroundList;
     private Map<UserlandProcess,PriorityEnum> sleepList;
     private Map<Integer,UserlandProcess> deviceList;
+    private int[] virtualPage;
+    private MemoryManagement memoryManagement;
+    private Map<Integer,UserlandProcess> memoryList;
 
     /**
      * the constructor of KernelandProcess class
@@ -23,6 +26,12 @@ public class KernelandProcess {
         this.backgroundList = new ArrayList<>();
         this.sleepList = new HashMap<>();
         this.deviceList = new HashMap<>();
+        this.virtualPage = new int[1024];
+        for (int i = 0; i < 1024; i++) {
+            virtualPage[i] = -1;
+        }
+        this.memoryManagement = new MemoryManagement();
+        this.memoryList = new HashMap<>();
     }
 
     /**
@@ -87,10 +96,27 @@ public class KernelandProcess {
             this.realTimeList.remove(userlandProcess);
             this.interactiveList.remove(userlandProcess);
             this.backgroundList.remove(userlandProcess);
+            ArrayList<Integer> KeyList = new ArrayList<>();
             for(Map.Entry<Integer, UserlandProcess> entry : this.deviceList.entrySet()){
                 if(entry.getValue() == userlandProcess){
                     OS.getOs().Close(entry.getKey());
+                    KeyList.add(entry.getKey());
+                    //this.deviceList.remove(entry.getKey());
                 }
+            }
+            for (int key:KeyList) {
+                this.deviceList.remove(key);
+            }
+            KeyList = new ArrayList<>();
+            for(Map.Entry<Integer, UserlandProcess> entry : this.memoryList.entrySet()){
+                if(entry.getValue() == userlandProcess){
+                    FreeMemory(entry.getKey());
+                    KeyList.add(entry.getKey());
+                    //this.memoryList.remove(entry.getKey());
+                }
+            }
+            for (int key:KeyList) {
+                this.memoryList.remove(key);
             }
             return true;
         }
@@ -110,10 +136,27 @@ public class KernelandProcess {
             this.realTimeList.remove(removeProcess);
             this.interactiveList.remove(removeProcess);
             this.backgroundList.remove(removeProcess);
+            ArrayList<Integer> KeyList = new ArrayList<>();
             for(Map.Entry<Integer, UserlandProcess> entry : this.deviceList.entrySet()){
                 if(entry.getValue() == removeProcess){
                     OS.getOs().Close(entry.getKey());
+                    KeyList.add(entry.getKey());
+                    //this.deviceList.remove(entry.getKey());
                 }
+            }
+            for (int key:KeyList) {
+                this.deviceList.remove(key);
+            }
+            KeyList = new ArrayList<>();
+            for(Map.Entry<Integer, UserlandProcess> entry : this.memoryList.entrySet()){
+                if(entry.getValue() == removeProcess){
+                    FreeMemory(entry.getKey());
+                    KeyList.add(entry.getKey());
+                    //this.memoryList.remove(entry.getKey());
+                }
+            }
+            for (int key:KeyList) {
+                this.memoryList.remove(key);
             }
             return true;
         }else {
@@ -310,6 +353,101 @@ public class KernelandProcess {
      */
     public void AddDivice(int id, UserlandProcess process){
         this.deviceList.put(id,process);
+    }
+
+    /**
+     *Write the data into memory
+     * @param address
+     * the physical address of memory
+     * @param value
+     * the value ready to write into memory, one byte each time
+     * @throws RescheduleException
+     * if the address is out of bounds will throw this exception
+     */
+    public void WriteMemory(int address, byte value) throws RescheduleException{
+        this.memoryManagement.WriteMemory(address,value);
+    }
+
+    /**
+     * Read the data from memory
+     * @param address
+     * the physical memory address
+     * @return
+     * the data read from that memory address
+     * @throws RescheduleException
+     * if the address is out of bounds will throw this exception
+     */
+    public byte ReadMemory(int address) throws RescheduleException{
+        return this.memoryManagement.ReadMemory(address);
+    }
+
+    /**
+     * get a new space of memory from the memory
+     * @param amount
+     * the space request from process. if over 1024 byte, will only return 0
+     * @return
+     * first time call will return 0 and second time call will return a free memory space address
+     */
+    public int sbrk(int amount, UserlandProcess process){
+        int address = this.memoryManagement.sbrk(amount);
+        if(address != 0){
+            for (int i = 0; i < 1024; i++) {
+                if(this.virtualPage[i] == -1){
+                    this.virtualPage[i] = address / 1024;
+                    this.memoryList.put(address,process);
+                    return i*1024;
+                }
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * get the physical address from a virtual address
+     * @param virtualAddress
+     * the virtual address use for look up physical address
+     * @return
+     * the physical address of this virtual address, if not this address return -1
+     */
+    public int CheckTLB(int virtualAddress){
+        int page = virtualAddress / 1024;
+        int offset = virtualAddress % 1024;
+        if(page > 1023){
+            return -1;
+        }
+        int result = this.virtualPage[page];
+        if(result == -1){
+            return -1;
+        }
+        return result*1024+offset;
+    }
+
+    /**
+     * free a memory space via the physical address
+     * @param address
+     * the physical address of memory ready to free
+     */
+    public void FreeMemory(int address){
+        this.memoryManagement.FreeMemory(address);
+    }
+
+    /**
+     * free all memory space of a process
+     * @param process
+     * the process ready to free all the memory space
+     */
+    public void FreeMemory(UserlandProcess process){
+        ArrayList<Integer> KeyList = new ArrayList<>();
+        for(Map.Entry<Integer, UserlandProcess> entry : this.memoryList.entrySet()){
+            if(entry.getValue() == process){
+                FreeMemory(entry.getKey());
+                KeyList.add(entry.getKey());
+                //this.memoryList.remove(entry.getKey());
+            }
+        }
+        for (int key:KeyList) {
+            this.memoryList.remove(key);
+        }
     }
 
 }
