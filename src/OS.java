@@ -163,4 +163,13 @@ public class OS implements OSInterface{
     public int sbrk(int amount) {
         return priorityScheduler.sbrk(amount);
     }
+
+    /**
+     * pass the VFS to MemoryManagement class to use the FFS to creat the swap file
+     * @return
+     * the VFS in the KLP
+     */
+    public VFS getVFS(){
+        return this.priorityScheduler.getVfS();
+    }
 }

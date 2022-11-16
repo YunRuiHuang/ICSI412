@@ -12,9 +12,11 @@ public class KernelandProcess {
     private ArrayList<UserlandProcess> backgroundList;
     private Map<UserlandProcess,PriorityEnum> sleepList;
     private Map<Integer,UserlandProcess> deviceList;
-    private int[] virtualPage;
+    private VirtualToPhysicalMapping[] virtualPage;
     private MemoryManagement memoryManagement;
     private Map<Integer,UserlandProcess> memoryList;
+    private UserlandProcess inUseProcess;
+    private int memoryPointer;
 
     /**
      * the constructor of KernelandProcess class
@@ -26,12 +28,13 @@ public class KernelandProcess {
         this.backgroundList = new ArrayList<>();
         this.sleepList = new HashMap<>();
         this.deviceList = new HashMap<>();
-        this.virtualPage = new int[1024];
-        for (int i = 0; i < 1024; i++) {
-            virtualPage[i] = -1;
-        }
-        this.memoryManagement = new MemoryManagement();
+        this.virtualPage = new VirtualToPhysicalMapping[1024];
+
         this.memoryList = new HashMap<>();
+    }
+
+    public void init(){
+        this.memoryManagement = new MemoryManagement();
     }
 
     /**
@@ -118,6 +121,7 @@ public class KernelandProcess {
             for (int key:KeyList) {
                 this.memoryList.remove(key);
             }
+            FreeMemory(userlandProcess);
             return true;
         }
     }
@@ -158,6 +162,7 @@ public class KernelandProcess {
             for (int key:KeyList) {
                 this.memoryList.remove(key);
             }
+            FreeMemory(removeProcess);
             return true;
         }else {
             return false;
@@ -356,7 +361,7 @@ public class KernelandProcess {
     }
 
     /**
-     *Write the data into memory
+     * Write the data into memory
      * @param address
      * the physical address of memory
      * @param value
@@ -365,7 +370,10 @@ public class KernelandProcess {
      * if the address is out of bounds will throw this exception
      */
     public void WriteMemory(int address, byte value) throws RescheduleException{
-        this.memoryManagement.WriteMemory(address,value);
+        this.virtualPage[address/1024].isDirty = true;
+
+        this.memoryManagement.WriteMemory(VirtualToPhysicalMapping(address),value);
+
     }
 
     /**
@@ -378,7 +386,7 @@ public class KernelandProcess {
      * if the address is out of bounds will throw this exception
      */
     public byte ReadMemory(int address) throws RescheduleException{
-        return this.memoryManagement.ReadMemory(address);
+        return this.memoryManagement.ReadMemory(VirtualToPhysicalMapping(address));
     }
 
     /**
@@ -389,37 +397,43 @@ public class KernelandProcess {
      * first time call will return 0 and second time call will return a free memory space address
      */
     public int sbrk(int amount, UserlandProcess process){
-        int address = this.memoryManagement.sbrk(amount);
-        if(address != 0){
-            for (int i = 0; i < 1024; i++) {
-                if(this.virtualPage[i] == -1){
-                    this.virtualPage[i] = address / 1024;
-                    this.memoryList.put(address,process);
-                    return i*1024;
-                }
-            }
-        }
-        return 0;
-    }
 
-    /**
-     * get the physical address from a virtual address
-     * @param virtualAddress
-     * the virtual address use for look up physical address
-     * @return
-     * the physical address of this virtual address, if not this address return -1
-     */
-    public int CheckTLB(int virtualAddress){
-        int page = virtualAddress / 1024;
-        int offset = virtualAddress % 1024;
-        if(page > 1023){
-            return -1;
+        if(this.inUseProcess == null){
+            this.inUseProcess = process;
+            return 0;
         }
-        int result = this.virtualPage[page];
-        if(result == -1){
-            return -1;
+        if(this.inUseProcess == process){
+            int page = this.memoryPointer / 1024;
+
+            if(page == (this.memoryPointer+amount-1)/1024){
+
+                if(this.virtualPage[page] == null){
+                    this.virtualPage[page] = new VirtualToPhysicalMapping();
+                    this.memoryList.put(page,process);
+
+                }
+                page = this.memoryPointer;
+                this.memoryPointer = this.memoryPointer + amount;
+                return page;
+            }else{
+                for (int i = page; i < (this.memoryPointer+amount-1)/1024; i++) {
+                    if(this.virtualPage[i] == null){
+                        this.virtualPage[i] = new VirtualToPhysicalMapping();
+                        this.memoryList.put(i,process);
+                    }
+                }
+                page = this.memoryPointer;
+                this.memoryPointer = this.memoryPointer + amount;
+                return page;
+            }
+        }else{
+            this.inUseProcess = process;
+            if(this.virtualPage[memoryPointer/1024] != null){
+                this.memoryPointer = (this.memoryPointer / 1024 + 1) * 1024;
+            }
+            return 0;
         }
-        return result*1024+offset;
+
     }
 
     /**
@@ -428,7 +442,15 @@ public class KernelandProcess {
      * the physical address of memory ready to free
      */
     public void FreeMemory(int address){
-        this.memoryManagement.FreeMemory(address);
+        int phyAddr = this.virtualPage[address].physicalAddress;
+        if(phyAddr != -1){
+            this.memoryManagement.FreeMemory(phyAddr);
+        }
+        int diskAdd = this.virtualPage[address].diskPage;
+        if(diskAdd != -1){
+            this.memoryManagement.ClearDisk(diskAdd);
+        }
+        this.virtualPage[address] = null;
     }
 
     /**
@@ -449,5 +471,85 @@ public class KernelandProcess {
             this.memoryList.remove(key);
         }
     }
+
+    /**
+     * clear the TLB in the memory management class, run it when change process
+     */
+    public void ClearTlb(){
+        this.memoryManagement.ClearTlb();
+    }
+
+    private int nextUnmapPage;
+
+    /**
+     * mapping the virtual address to physical address, also handle swapping
+     * include swapping other page to disk and load the data from disk to memory
+     * also, after load the physical page, it will be updated to TLB
+     * for testing, I hard code in 5 max physical page can be use, over that other virtual page will start steal page
+     * @param virtual
+     * the address of virtual page
+     * @return
+     * the physical page address, which after finish all work such as swap, get new page, or check the TLB address
+     * @throws RescheduleException
+     * throw except when out of bound
+     */
+    //need a new method to handel V to P address
+    public int VirtualToPhysicalMapping(int virtual) throws RescheduleException{
+        int page = virtual / 1024;
+        int offset = virtual % 1024;
+        if(this.virtualPage[page] == null){
+            throw new RescheduleException();
+        }
+        if(this.memoryManagement.GetTlbVirtual() == page){
+            return this.memoryManagement.GetTlbPhysical() * 1024 + offset;
+        }
+
+        if(this.virtualPage[page].physicalAddress != -1){
+            this.memoryManagement.SetTlbVirtual(page);
+            this.memoryManagement.SetTlbPhysical(this.virtualPage[page].physicalAddress/1024);
+            return this.virtualPage[page].physicalAddress + offset;
+        }else{
+            if(page < 5){ //look for a new physical address
+                this.virtualPage[page].physicalAddress = this.memoryManagement.sbrk(1024);
+                if(this.virtualPage[page].diskPage != -1){
+                    this.memoryManagement.loadData(this.virtualPage[page].physicalAddress,this.virtualPage[page].diskPage);
+                }
+                this.memoryManagement.SetTlbVirtual(page);
+                this.memoryManagement.SetTlbPhysical(this.virtualPage[page].physicalAddress/1024);
+                return this.virtualPage[page].physicalAddress + offset;
+            }else{ //take other process physical address
+                while (true){
+                    if (this.virtualPage[nextUnmapPage].physicalAddress != -1){
+                        this.virtualPage[page].physicalAddress = this.virtualPage[nextUnmapPage].physicalAddress;
+                        if(this.virtualPage[nextUnmapPage].isDirty){
+                            this.virtualPage[nextUnmapPage].diskPage = this.memoryManagement.saveToDisk(this.virtualPage[nextUnmapPage].physicalAddress,this.virtualPage[nextUnmapPage].diskPage);
+                            this.virtualPage[nextUnmapPage].isDirty = false;
+                        }
+                        if(this.virtualPage[page].diskPage != -1){
+                            this.memoryManagement.loadData(this.virtualPage[page].physicalAddress,this.virtualPage[page].diskPage);
+                        }
+                        this.virtualPage[nextUnmapPage].physicalAddress = -1;
+                        if (this.virtualPage[nextUnmapPage + 1] == null) {
+                            nextUnmapPage = 0;
+                        }else{
+                            nextUnmapPage = nextUnmapPage + 1;
+                        }
+                        this.memoryManagement.SetTlbVirtual(page);
+                        this.memoryManagement.SetTlbPhysical(this.virtualPage[page].physicalAddress/1024);
+                        return this.virtualPage[page].physicalAddress + offset;
+                    }else{
+                        if (this.virtualPage[nextUnmapPage + 1] == null) {
+                            nextUnmapPage = 0;
+                        }else{
+                            nextUnmapPage = nextUnmapPage + 1;
+                        }
+
+                    }
+                }
+
+            }
+        }
+    }
+
 
 }
