@@ -57,21 +57,34 @@ public class TestDevices extends UserlandProcess{
 
         System.out.println("Test Devices Process running");
 
-        OS.getOs().sbrk(10);
-        int address = OS.getOs().sbrk(10);
+        OS.getOs().sbrk(1024);
+        int address = OS.getOs().sbrk(1024);
         System.out.println("\tget the memory address : " + address);
+        OS.getOs().WriteMemory(address,(byte)'T');
+        OS.getOs().WriteMemory(address+1,(byte)'e');
+        OS.getOs().WriteMemory(address+2,(byte)'s');
+        OS.getOs().WriteMemory(address+3,(byte)'t');
+        OS.getOs().WriteMemory(address+4,(byte)'1');
+        System.out.println("\tread from memory : " + (char)OS.getOs().ReadMemory(address)+ (char)OS.getOs().ReadMemory(address+1)+ (char)OS.getOs().ReadMemory(address+2)+ (char)OS.getOs().ReadMemory(address+3)+ (char)OS.getOs().ReadMemory(address+4) );
 
-
-        OS.getOs().sbrk(10);
-        this.memoryAddress = OS.getOs().sbrk(10);
+        OS.getOs().sbrk(1024);
+        OS.getOs().sbrk(1024);
+        OS.getOs().sbrk(1024);
+        OS.getOs().sbrk(1024);
+        this.memoryAddress = OS.getOs().sbrk(1024);
         System.out.println("\tget more memory address : " + this.memoryAddress);
 
         //write into memory
+
+        System.out.println("\ttry swapping first page to disk");
         byte testInput = (byte)'a';
         OS.getOs().WriteMemory(this.memoryAddress,testInput);
 
         byte readBack = OS.getOs().ReadMemory(this.memoryAddress);
         System.out.println("\tread from memory : " + (char)readBack);
+        System.out.println("\ttry read disk back to memory");
+        System.out.println("\tread from memory : " + (char)OS.getOs().ReadMemory(address)+ (char)OS.getOs().ReadMemory(address+1)+ (char)OS.getOs().ReadMemory(address+2)+ (char)OS.getOs().ReadMemory(address+3)+ (char)OS.getOs().ReadMemory(address+4) );
+
         System.out.println("\ttry outofbounds");
         OS.getOs().ReadMemory(this.memoryAddress+1024);
         //process should be killed here

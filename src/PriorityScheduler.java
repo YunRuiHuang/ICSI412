@@ -6,25 +6,21 @@ import java.util.concurrent.TimeUnit;
  * @author Yunrui Huang
  */
 public class PriorityScheduler implements OSInterface {
+    private VFS vfs = new VFS();
     private KernelandProcess processList = new KernelandProcess();
     private UserlandProcess runningProcess;
     private PriorityEnum runningPriorityEnum;
     private boolean ifNotSleep = true;
-    private VFS vfs = new VFS();
-    private int tlbVirtual = -1;
-    private int tlbPhysical = -1;
 
     /**
      * The run method looping to run all the process in the process list
      * after the running loop, the running time will be save and used to update the sleep list
      */
     public void run(){
+        this.processList.init();
         while(true){
 
-            //clear tlb
-            this.tlbPhysical = -1;
-            this.tlbVirtual = -1;
-
+            this.processList.ClearTlb();
             int timeToRun = 0;
 
             Random random = new Random();
@@ -54,8 +50,7 @@ public class PriorityScheduler implements OSInterface {
                      runResult = this.runningProcess.run();
                 }catch(RescheduleException e){
                     this.processList.RemoveProcess(this.runningProcess);
-                    this.tlbVirtual = -1;
-                    this.tlbPhysical = -1;
+                    this.processList.ClearTlb();
                     this.runningPriorityEnum = null;
                     this.runningProcess = null;
                     this.ifNotSleep = true;
@@ -108,8 +103,7 @@ public class PriorityScheduler implements OSInterface {
                     runResult = this.runningProcess.run();
                 }catch(RescheduleException e){
                     this.processList.RemoveProcess(this.runningProcess);
-                    this.tlbVirtual = -1;
-                    this.tlbPhysical = -1;
+                    this.processList.ClearTlb();
                     this.runningPriorityEnum = null;
                     this.runningProcess = null;
                     this.ifNotSleep = true;
@@ -161,8 +155,7 @@ public class PriorityScheduler implements OSInterface {
                     runResult = this.runningProcess.run();
                 }catch(RescheduleException e){
                     this.processList.RemoveProcess(this.runningProcess);
-                    this.tlbVirtual = -1;
-                    this.tlbPhysical = -1;
+                    this.processList.ClearTlb();
                     this.runningPriorityEnum = null;
                     this.runningProcess = null;
                     this.ifNotSleep = true;
@@ -318,15 +311,15 @@ public class PriorityScheduler implements OSInterface {
      */
     @Override
     public void WriteMemory(int address, byte value) throws RescheduleException {
-        if(this.tlbVirtual != address){
-            this.tlbVirtual = -1;
-            this.tlbPhysical = this.processList.CheckTLB(address);
-            if(this.tlbPhysical == -1){
-                throw new RescheduleException();
-            }
-            this.tlbVirtual = address;
-        }
-        this.processList.WriteMemory(this.tlbPhysical,value);
+//        if(this.tlbVirtual != address){
+//            this.tlbVirtual = -1;
+//            this.tlbPhysical = this.processList.CheckTLB(address);
+//            if(this.tlbPhysical == -1){
+//                throw new RescheduleException();
+//            }
+//            this.tlbVirtual = address;
+//        }
+        this.processList.WriteMemory(address,value);
     }
 
     /**
@@ -340,15 +333,15 @@ public class PriorityScheduler implements OSInterface {
      */
     @Override
     public byte ReadMemory(int address) throws RescheduleException {
-        if(this.tlbVirtual != address){
-            this.tlbVirtual = -1;
-            this.tlbPhysical = this.processList.CheckTLB(address);
-            if(this.tlbPhysical == -1){
-                throw new RescheduleException();
-            }
-            this.tlbVirtual = address;
-        }
-        return this.processList.ReadMemory(this.tlbPhysical);
+//        if(this.tlbVirtual != address){
+//            this.tlbVirtual = -1;
+//            this.tlbPhysical = this.processList.CheckTLB(address);
+//            if(this.tlbPhysical == -1){
+//                throw new RescheduleException();
+//            }
+//            this.tlbVirtual = address;
+//        }
+        return this.processList.ReadMemory(address);
     }
 
     /**
@@ -361,5 +354,14 @@ public class PriorityScheduler implements OSInterface {
     @Override
     public int sbrk(int amount) {
         return this.processList.sbrk(amount,this.runningProcess);
+    }
+
+    /**
+     * pass the VFS to MemoryManagement class to use the FFS to creat the swap file
+     * @return
+     * the VFS in the KLP
+     */
+    public VFS getVfS(){
+        return this.vfs;
     }
 }
