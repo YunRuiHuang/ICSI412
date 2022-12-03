@@ -364,4 +364,57 @@ public class PriorityScheduler implements OSInterface {
     public VFS getVfS(){
         return this.vfs;
     }
+
+
+    /**
+     * attach a process to the mutex object base on the mutex name
+     * @param name
+     * the name of mutex for attach
+     * @return
+     * the id of mutex, we can add max 10 mutex, fail to attach will return -1
+     */
+    @Override
+    public int AttachToMutex(String name) {
+        return this.processList.AttachToMutex(name,runningProcess);
+    }
+
+    /**
+     * Lock the mutex
+     * @param mutexId
+     * the id of mutex ready to lock
+     * @return
+     * return true if success or already lock by this process, false if already lock
+     */
+    @Override
+    public boolean Lock(int mutexId) {
+        boolean result = this.processList.Lock(mutexId,runningProcess);
+        if(result){
+            return true; //success
+        }else{
+            this.processList.AddWaitProcess(runningProcess,runningPriorityEnum);
+            this.ifNotSleep = false;
+            return false;
+        }
+
+    }
+
+    /**
+     * Unlock the mutex, if the mutex is lock by current process
+     * @param mutexId
+     * the id of mutex ready for unlock
+     */
+    @Override
+    public void Unlock(int mutexId) {
+        this.processList.Unlock(mutexId,runningProcess);
+    }
+
+    /**
+     * Release the process from a mutex
+     * @param mutexId
+     * the id of mutex of process attach to
+     */
+    @Override
+    public void ReleaseMutex(int mutexId) {
+        this.processList.ReleaseMutex(mutexId,runningProcess);
+    }
 }

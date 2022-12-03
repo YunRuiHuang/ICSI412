@@ -17,6 +17,8 @@ public class KernelandProcess {
     private Map<Integer,UserlandProcess> memoryList;
     private UserlandProcess inUseProcess;
     private int memoryPointer;
+    private Map<UserlandProcess,PriorityEnum> waitList;
+    private MutexObject[] mutexObjects;
 
     /**
      * the constructor of KernelandProcess class
@@ -31,6 +33,8 @@ public class KernelandProcess {
         this.virtualPage = new VirtualToPhysicalMapping[1024];
 
         this.memoryList = new HashMap<>();
+        this.waitList = new HashMap<>();
+        this.mutexObjects = new MutexObject[10];
     }
 
     public void init(){
@@ -122,6 +126,10 @@ public class KernelandProcess {
                 this.memoryList.remove(key);
             }
             FreeMemory(userlandProcess);
+            for (int i = 0; i < 10; i++) {
+                ReleaseMutex(i,userlandProcess);
+            }
+            this.waitList.remove(userlandProcess);
             return true;
         }
     }
@@ -163,6 +171,10 @@ public class KernelandProcess {
                 this.memoryList.remove(key);
             }
             FreeMemory(removeProcess);
+            for (int i = 0; i < 10; i++) {
+                ReleaseMutex(i,removeProcess);
+            }
+            this.waitList.remove(removeProcess);
             return true;
         }else {
             return false;
@@ -551,5 +563,140 @@ public class KernelandProcess {
         }
     }
 
+
+    /**
+     * attach a process to the mutex object base on the mutex name
+     * if no such mutex, just make a new mutex
+     * @param name
+     * the name of mutex for attach
+     * @param runningProcess
+     * the process ready to attach to the mutex
+     * @return
+     * the id of mutex, we can add max 10 mutex, fail to attach will return -1
+     */
+    public int AttachToMutex(String name, UserlandProcess runningProcess){
+        for (int i = 0; i < 10; i++) {
+            if(this.mutexObjects[i] != null){
+                if(this.mutexObjects[i].name.equalsIgnoreCase(name)){
+                    this.mutexObjects[i].attachList.add(runningProcess);
+                    return i;
+                }
+            }
+        }
+        for (int i = 0; i < 10; i++) {
+            if(this.mutexObjects[i] == null){
+                this.mutexObjects[i] = new MutexObject(name,runningProcess);
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Release the process from a mutex
+     * if the attachlist in this mutex become empty, which not process is attach, this mutex will delete
+     * @param mutexId
+     * the id of mutex of process attach to
+     * @param runningProcess
+     * the process ready for release the mutex
+     */
+    public void ReleaseMutex(int mutexId, UserlandProcess runningProcess){
+        if(this.mutexObjects[mutexId] == null){
+            return;
+        }
+        this.mutexObjects[mutexId].attachList.remove(runningProcess);
+        if(this.mutexObjects[mutexId].inUseProcess == runningProcess){
+            Unlock(mutexId,runningProcess);
+        }
+        if(this.mutexObjects[mutexId].attachList.isEmpty()){
+            System.out.println("\t\tMutex : " + this.mutexObjects[mutexId].name + " is no attach and has been delete!");
+            this.mutexObjects[mutexId] = null;
+        }
+    }
+
+    /**
+     * Lock the mutex
+     * @param mutexId
+     * the id of mutex ready to lock
+     * @param runningProcess
+     * the process ready to lock the mutex
+     * @return
+     * return true if success or already lock by this process, false if already lock
+     */
+    public boolean Lock(int mutexId, UserlandProcess runningProcess){
+        if(this.mutexObjects[mutexId].flag){
+            if(this.mutexObjects[mutexId].inUseProcess == runningProcess){
+                return true;
+            }
+            return false;
+        }else{
+            this.mutexObjects[mutexId].flag = true;
+            this.mutexObjects[mutexId].inUseProcess = runningProcess;
+            return true;
+        }
+    }
+
+    /**
+     * Unlock the mutex, if the mutex is lock by current process
+     * @param mutexId
+     * the id of mutex ready for unlock
+     * @param runningProcess
+     * the process ready to unlock the mutex
+     */
+    public void Unlock(int mutexId, UserlandProcess runningProcess){
+        if(this.mutexObjects[mutexId].inUseProcess == runningProcess){
+            this.mutexObjects[mutexId].flag = false;
+            this.mutexObjects[mutexId].inUseProcess = null;
+            if(this.mutexObjects[mutexId].attachList.size() > 1){
+                for (int i = 1; i < this.mutexObjects[mutexId].attachList.size(); i++) {
+                    if(ReleaseWaitProcess(this.mutexObjects[mutexId].attachList.get(i))){
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * add the process to the wait list
+     * @param userlandProcess
+     * the process ready to add in wait list
+     * @param priorityEnum
+     * the priority of this process
+     * @return
+     * the process id
+     */
+    public int AddWaitProcess(UserlandProcess userlandProcess, PriorityEnum priorityEnum){
+        if(this.waitList.get(userlandProcess) == null){
+            this.waitList.put(userlandProcess,priorityEnum);
+        }
+        return this.processesList.indexOf(userlandProcess);
+    }
+
+    /**
+     * release the process from wait list back to run list
+     * @param userlandProcess
+     * the process need to release
+     * @return
+     * true if successful release, false if no such process in wait list
+     */
+    public boolean ReleaseWaitProcess(UserlandProcess userlandProcess){
+        if(this.waitList.get(userlandProcess) != null){
+            if(this.waitList.get(userlandProcess) == PriorityEnum.RealTime){
+                this.realTimeList.add(userlandProcess);
+                this.waitList.remove(userlandProcess);
+                return true;
+            }else if(this.waitList.get(userlandProcess) == PriorityEnum.Interactive){
+                this.interactiveList.add(userlandProcess);
+                this.waitList.remove(userlandProcess);
+                return true;
+            }else if(this.waitList.get(userlandProcess) == PriorityEnum.Background){
+                this.backgroundList.add(userlandProcess);
+                this.waitList.remove(userlandProcess);
+                return true;
+            }
+        }
+        return false;
+    }
 
 }

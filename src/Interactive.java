@@ -5,7 +5,8 @@ import java.nio.charset.StandardCharsets;
  */
 public class Interactive extends UserlandProcess{
     private int abusingTimes = 0;
-
+    private int mutexId = 0;
+    private int state = 0;
 
     /**
      * get the count of ran of timeout
@@ -57,18 +58,35 @@ public class Interactive extends UserlandProcess{
         System.out.println("Interactive process running");
         System.out.println("\t\ttimeout count : " + this.abusingTimes);
 
-        int[] id = new int[1];
-        id[0] = OS.getOs().Open("pipe joe");
-        System.out.println("\t\tOpen pipe device (joe), Id : " + id[0]);
-        //test the pipe read
-        System.out.println("\t\tread from pipe: " + new String(OS.getOs().Read(id[0],100), StandardCharsets.UTF_8));
-        //test the pipe write
-        OS.getOs().Write(id[0], "interactive input".getBytes(StandardCharsets.UTF_8));
+        if(this.state == 0){
+            this.mutexId = OS.getOs().AttachToMutex("Aflag");
+            if(OS.getOs().Lock(mutexId)){
+                System.out.println("\t\tInteractive process Successful Lock Aflag");
+                OS.getOs().Unlock(this.mutexId);
+                OS.getOs().ReleaseMutex(this.mutexId);
+                System.out.println("\t\tInteractive process Successful Unlock and release Aflag mutex");
+            }else{
+                System.out.println("\t\tInteractive process fail to Lock Aflag");
+                this.state = 1;
+            }
+        }else {
+            if (OS.getOs().Lock(mutexId)) {
+                System.out.println("\t\tInteractive process Successful Lock Aflag");
+                OS.getOs().Unlock(this.mutexId);
+                OS.getOs().ReleaseMutex(this.mutexId);
+                System.out.println("\t\tInteractive process Successful Unlock and release Aflag mutex");
+                this.state = 0;
+            } else {
+                System.out.println("\t\tInteractive process fail to Lock Aflag");
+            }
+        }
+
+
 
         RunResult runResult = new RunResult();
         runResult.millisecondsUsed = 100;
         runResult.ranToTimeout = false;
-        runResult.fileID = id;
+        runResult.fileID = new int[0];
         if(abusingTimes < 6){
             runResult.ranToTimeout = true;
         }
