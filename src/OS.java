@@ -172,4 +172,48 @@ public class OS implements OSInterface{
     public VFS getVFS(){
         return this.priorityScheduler.getVfS();
     }
+
+    /**
+     * attach a process to the mutex object base on the mutex name
+     * @param name
+     * the name of mutex for attach
+     * @return
+     * the id of mutex, we can add max 10 mutex, fail to attach will return -1
+     */
+    @Override
+    public int AttachToMutex(String name) {
+        return this.priorityScheduler.AttachToMutex(name);
+    }
+
+    /**
+     * Lock the mutex
+     * @param mutexId
+     * the id of mutex ready to lock
+     * @return
+     * return true if success or already lock by this process, false if already lock
+     */
+    @Override
+    public boolean Lock(int mutexId) {
+        return this.priorityScheduler.Lock(mutexId);
+    }
+
+    /**
+     * Unlock the mutex, if the mutex is lock by current process
+     * @param mutexId
+     * the id of mutex ready for unlock
+     */
+    @Override
+    public void Unlock(int mutexId) {
+        this.priorityScheduler.Unlock(mutexId);
+    }
+
+    /**
+     * Release the process from a mutex
+     * @param mutexId
+     * the id of mutex of process attach to
+     */
+    @Override
+    public void ReleaseMutex(int mutexId) {
+        this.priorityScheduler.ReleaseMutex(mutexId);
+    }
 }

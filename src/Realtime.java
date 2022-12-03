@@ -8,7 +8,7 @@ public class Realtime extends UserlandProcess {
     private int abusingTimes = 0;
     private int[] fileId = new int[0];
     private int state = 0;
-
+    private int mutexId = 0;
     /**
      * get the count of ran of timeout
      * @return
@@ -59,29 +59,16 @@ public class Realtime extends UserlandProcess {
 
         if(state == 0){
             System.out.println("Real Time process running");
-            int[] id = new int[3];
-
-            id[0] = OS.getOs().Open("random 100");
-            System.out.println("\t\tOpen random device (100), Id : " + id[0]);
-            id[1] = OS.getOs().Open("file data.bat");
-            System.out.println("\t\tOpen file device (data.bat), Id : " + id[1]);
-            id[2] = OS.getOs().Open("pipe joe");
-            System.out.println("\t\tOpen pipe device (joe), Id : " + id[2]);
-
-            String testInput = "Realtime input";
-            //test the pipe write
-            OS.getOs().Write(id[2], testInput.getBytes(StandardCharsets.UTF_8));
-
-            //test the file write
-            OS.getOs().Write(id[1], testInput.getBytes(StandardCharsets.UTF_8));
-
-            //test the file seek (skip two byte, should across the "He")
-            OS.getOs().Seek(id[1],2);
-
-            this.fileId = id;
-            this.state = 1;
-            OS.getOs().Sleep(300);
-            System.out.println("\t\tReal Time process sleep 300ms");
+            mutexId = OS.getOs().AttachToMutex("Aflag");
+            if(OS.getOs().Lock(mutexId)){
+                this.state = 1;
+                System.out.println("\t\tReal Time process Successful Lock Aflag");
+                OS.getOs().Sleep(300);
+                System.out.println("\t\tReal Time process sleep 300ms");
+            }else{
+                this.state = 0;
+                System.out.println("\t\tReal Time process fail to Lock Aflag");
+            }
 
             RunResult runResult = new RunResult();
             runResult.millisecondsUsed = 100;
@@ -91,16 +78,9 @@ public class Realtime extends UserlandProcess {
         }else{
             System.out.println("Real Time process running");
 
-            //test the random read
-            String hex = DatatypeConverter.printHexBinary(OS.getOs().Read(this.fileId[0],10));
-            System.out.println("\t\tread from random: " + hex);
-
-            //test the file read
-            System.out.println("\t\tread from file: " + new String(OS.getOs().Read(this.fileId[1],10),StandardCharsets.UTF_8));
-
-            //test the pipe read
-            System.out.println("\t\tread from pipe: " + new String(OS.getOs().Read(this.fileId[2],100),StandardCharsets.UTF_8));
-
+            OS.getOs().Unlock(mutexId);
+            OS.getOs().ReleaseMutex(mutexId);
+            System.out.println("\t\tReal Time process release MutexId");
             this.state=0;
 
             OS.getOs().Sleep(300);
@@ -109,8 +89,7 @@ public class Realtime extends UserlandProcess {
             RunResult runResult = new RunResult();
             runResult.millisecondsUsed = 100;
             runResult.ranToTimeout = false;
-            //close all the device id
-            runResult.fileID = this.fileId;
+            runResult.fileID = new int[0];
             return runResult;
         }
 

@@ -57,6 +57,9 @@ public class TestDevices extends UserlandProcess{
 
         System.out.println("Test Devices Process running");
 
+        int mutexId = OS.getOs().AttachToMutex("Aflag");
+        OS.getOs().Lock(mutexId);
+
         OS.getOs().sbrk(1024);
         int address = OS.getOs().sbrk(1024);
         System.out.println("\tget the memory address : " + address);
